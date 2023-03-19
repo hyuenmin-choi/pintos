@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <round.h>
 #include <stdio.h>
+#include <list.h>
 #include "threads/interrupt.h"
 #include "threads/io.h"
 #include "threads/synch.h"
@@ -88,13 +89,39 @@ timer_elapsed (int64_t then) {
 }
 
 /* Suspends execution for approximately TICKS timer ticks. */
+
+/*
+TODO:
+Suspends execution of the calling thread 
+until time has advanced by at least x timer ticks. 
+Unless the system is otherwise idle, 
+the thread need not wake up after exactly x ticks. 
+Just put it on the ready queue after they have waited for the right amount of time.
+
+*/
 void
 timer_sleep (int64_t ticks) {
 	int64_t start = timer_ticks ();
 
+	//original skeleton
 	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks)
-		thread_yield ();
+
+	// while (timer_elapsed (start) < ticks)
+	// 	thread_yield ();
+
+	struct thread *curr = thread_current();
+
+	enum intr_level old_level = intr_disable();
+	thread_block_sleep(ticks);
+	intr_set_level (old_level);
+
+	// while (1){
+	// 	if(timer_elapsed (start) < ticks)
+	// 		break;
+	// 	}
+
+	// thread_unblock(curr);
+	// thread_yield();
 }
 
 /* Suspends execution for approximately MS milliseconds. */

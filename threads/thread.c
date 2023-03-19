@@ -28,6 +28,10 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+/* List of processes in sleep mode,
+   after some duration they will be ready state*/
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -108,6 +112,7 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
+	list_init (&sleep_list);
 	list_init (&destruction_req);
 
 	/* Set up a thread structure for the running thread. */
@@ -148,6 +153,25 @@ thread_tick (void) {
 #endif
 	else
 		kernel_ticks++;
+
+	/* Update sleep list*/
+	if(!list_empty(&sleep_list)){
+		for(struct list_elem * e = list_begin(&sleep_list); e != list_end(&sleep_list);){
+			
+			struct thread *t = list_entry (e, struct thread, elem);
+			
+			if(t->sleep_due == 0) {
+				//sleep duration ends, put into ready list
+				thread_unblock(t);
+				e = list_remove(e);	
+			}
+			else {
+				t->sleep_due--;
+				e = list_next(e);
+			}
+
+		}
+	}
 
 	/* Enforce preemption. */
 	if (++thread_ticks >= TIME_SLICE)
@@ -192,6 +216,9 @@ thread_create (const char *name, int priority,
 	/* Initialize thread. */
 	init_thread (t, name, priority);
 	tid = t->tid = allocate_tid ();
+	
+	//for timer_sleep()
+	t->sleep_due = 0;
 
 	/* Call the kernel_thread if it scheduled.
 	 * Note) rdi is 1st argument, and rsi is 2nd argument. */
@@ -217,10 +244,27 @@ thread_create (const char *name, int priority,
    is usually a better idea to use one of the synchronization
    primitives in synch.h. */
 void
-thread_block (void) {
+thread_block () {
 	ASSERT (!intr_context ());
 	ASSERT (intr_get_level () == INTR_OFF);
+	
 	thread_current ()->status = THREAD_BLOCKED;
+	schedule ();
+}
+
+void
+thread_block_sleep (int64_t blockdue) {
+	ASSERT (!intr_context ());
+	ASSERT (intr_get_level () == INTR_OFF);
+	
+	struct thread *cur = thread_current();
+
+	if(blockdue != 0){
+		list_push_back(&sleep_list, cur);
+		cur->sleep_due = blockdue;
+	}
+
+	cur->status = THREAD_BLOCKED;
 	schedule ();
 }
 
@@ -366,7 +410,7 @@ idle (void *idle_started_ UNUSED) {
 	for (;;) {
 		/* Let someone else run. */
 		intr_disable ();
-		thread_block ();
+		thread_block (0);
 
 		/* Re-enable interrupts and wait for the next one.
 

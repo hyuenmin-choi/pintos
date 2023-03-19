@@ -92,6 +92,8 @@ struct thread {
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
 
+	unsigned int sleep_due;
+
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 
@@ -123,7 +125,8 @@ void thread_print_stats (void);
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
 
-void thread_block (void);
+void thread_block ();
+void thread_block_sleep (int64_t blockdue);
 void thread_unblock (struct thread *);
 
 struct thread *thread_current (void);
